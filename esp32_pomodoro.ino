@@ -18,6 +18,7 @@
 CRGB abstracted_leds[NUM_LEDS];
 CRGB leds[NUM_LEDS];
 
+bool debug_mode = false;             // apply SPEEDUP_FACTOR
 bool paused = true;                  // if time is currently stopped;
 bool useLongFormBreak = false;       // If green should span 360 degrees
 uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
@@ -139,6 +140,11 @@ void loop() {
     useLongFormBreak = !useLongFormBreak;
   }
 
+  if (veryLongPressFlag_copy) {
+    Serial.println("Very long click!");
+    debug_mode = !debug_mode;
+  }
+
   // Handle pulsing
   float pulseModifier = 1.0;
   if (paused) {
@@ -174,7 +180,10 @@ void loop() {
 
   // Add time if not paused
   if (!paused) {
-    uint16_t time_passed_to_add = SPEEDUP_FACTOR * REFRESH_RATE_MS;
+    uint16_t time_passed_to_add = REFRESH_RATE_MS;
+    if(debug_mode) {
+      time_passed_to_add *= SPEEDUP_FACTOR;
+    }
     current_set_time_ms = current_set_time_ms + time_passed_to_add;
     if (current_set_time_ms >= 1800000) {
       // Done with the break. Reset and pause.
