@@ -4,6 +4,7 @@
 #define REFRESH_RATE_MS 10
 #define SPEEDUP_FACTOR 100  // For debugging
 #define PULSE_PERIOD_MS 5000
+#define TIME_TO_SLEEP_MS 60 * 60 * 1000  // 1h
 
 #define CLK 16
 #define DT 17
@@ -18,8 +19,10 @@
 CRGB abstracted_leds[NUM_LEDS];
 CRGB leds[NUM_LEDS];
 
-bool debug_mode = false;             // apply SPEEDUP_FACTOR
 bool paused = true;                  // if time is currently stopped;
+bool sleeping = true;                // low light, inactive
+uint32_t last_event = 0;             // last event, for sleeping
+bool debug_mode = false;             // apply SPEEDUP_FACTOR
 bool useLongFormBreak = false;       // If green should span 360 degrees
 uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
 uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
@@ -30,11 +33,13 @@ volatile bool longPressFlag = false;      // Long press detected
 volatile bool veryLongPressFlag = false;  // Very long press detected
 volatile uint32_t buttonPressTime = 0;
 volatile bool buttonPressed = false;
+volatile bool somethingHappened = false;  // Catch all for all ISR
 
 int16_t inputDelta_copy = 0;
 bool clickFlag_copy = false;
 bool longPressFlag_copy = false;
 bool veryLongPressFlag_copy = false;
+bool somethingHappened_copy = false;
 
 void abstract_leds() {
   // Simplify model assuming idx 0 = minute 1 on clock face
@@ -47,6 +52,7 @@ void abstract_leds() {
 void IRAM_ATTR encoderISR() {
   static uint8_t lastState = 0;
   uint8_t state = (digitalRead(CLK) << 1) | digitalRead(DT);
+  somethingHappened = true;
 
   // Detect direction
   if ((lastState == 0b10 && state == 0b00) || (lastState == 0b00 && state == 0b01) || (lastState == 0b01 && state == 0b11) || (lastState == 0b11 && state == 0b10)) {
@@ -61,11 +67,12 @@ void IRAM_ATTR encoderISR() {
 void IRAM_ATTR buttonISR() {
   static uint32_t lastInterruptTime = 0;
   uint32_t currentTime = millis();
+  somethingHappened = true;
 
   if (currentTime - lastInterruptTime > DEBOUNCE_MS) {
     // hack with !buttonPressed
     // stupid stuff happening otherwise
-    if (!digitalRead(SW) && !buttonPressed) { // Button pressed
+    if (!digitalRead(SW) && !buttonPressed) {  // Button pressed
       buttonPressTime = currentTime;
       buttonPressed = true;
     } else {  // Button released
@@ -128,11 +135,24 @@ void loop() {
 
   inputDelta_copy = inputDelta;
   inputDelta = 0;
+
+  somethingHappened_copy = somethingHappened;
+  somethingHappened = false;
   interrupts();
 
   if (clickFlag_copy) {
     Serial.println("Clicked!");
     paused = !paused;
+  }
+
+  // Handle wake up from sleep
+  // and remember last event, also for sleep
+  if (somethingHappened_copy) {
+    last_event = millis();
+    sleeping = false;
+  }
+  if (millis() - last_event >= TIME_TO_SLEEP_MS) {
+    sleeping = true;
   }
 
   if (longPressFlag_copy) {
@@ -152,6 +172,12 @@ void loop() {
     pulseModifier = 0.1 + pulseModifier0to1 * 0.9;
   }
 
+  // Handle sleeping
+  float sleepModifier = 1.0;
+  if (sleeping) {
+    sleepModifier = 0.1;
+  }
+
   // Handle manual time editing if paused
   if (paused && inputDelta_copy != 0) {
     int to_add_value = inputDelta_copy * 10000;
@@ -165,14 +191,14 @@ void loop() {
 
   if (current_set_time_ms < 1500000) {
     // working
-    setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier);
+    setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier * sleepModifier);
   } else {
     int value = current_set_time_ms - 300000;  // 1200000-1499000
     if (useLongFormBreak) {
       value = (value - 1200000) * 5;
-      setLedValueForTime(value, 0, 200, 70, pulseModifier);
+      setLedValueForTime(value, 0, 200, 70, pulseModifier * sleepModifier);
     } else {
-      setLedValueForTime(value, 0, 255, 0, pulseModifier);
+      setLedValueForTime(value, 0, 255, 0, pulseModifier * sleepModifier);
     }
   }
   abstract_leds();
@@ -181,7 +207,7 @@ void loop() {
   // Add time if not paused
   if (!paused) {
     uint16_t time_passed_to_add = REFRESH_RATE_MS;
-    if(debug_mode) {
+    if (debug_mode) {
       time_passed_to_add *= SPEEDUP_FACTOR;
     }
     current_set_time_ms = current_set_time_ms + time_passed_to_add;
