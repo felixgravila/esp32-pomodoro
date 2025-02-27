@@ -20,7 +20,7 @@ CRGB leds[NUM_LEDS];
 
 bool paused = false;                 // if time is currently stopped;
 bool useLongFormBreak = false;       // If green should span 360 degrees
-uint32_t current_set_time_s = 0;     // 0-1499 work, 1500-1799 pause
+uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
 uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
 
 volatile int16_t inputDelta = 0;          // Amount rotenc got turned
@@ -63,9 +63,11 @@ void IRAM_ATTR buttonISR() {
 
   if (currentTime - lastInterruptTime > 50) {  // Debounce with 50ms delay
     if (!digitalRead(SW)) {                    // Button pressed
+      Serial.println("Some kind of click.");
       buttonPressTime = currentTime;
       buttonPressed = true;
     } else {  // Button released
+      Serial.println("Some kind of unclick.");
       uint32_t pressDuration = currentTime - buttonPressTime;
       buttonPressed = false;
       if (pressDuration > 2000) {  // Very long press thershold (2s)
@@ -81,9 +83,9 @@ void IRAM_ATTR buttonISR() {
 }
 
 void setLedValueForTime(int time_s, uint8_t red, uint8_t green, uint8_t blue, float brightness) {
-  time_s = constrain(time_s, 0, 1499);
+  time_s = constrain(time_s, 0, 1499000);
   brightness = constrain(brightness, 0, 1);
-  float threshold = (time_s / 1499.0) * NUM_LEDS;
+  float threshold = (time_s / 1499000.0) * NUM_LEDS;
   int fullOffCount = floor(threshold);          // Completely off LEDs
   float fade = 1 - (threshold - fullOffCount);  // Fractional part for transition
 
@@ -145,17 +147,23 @@ void loop() {
   }
 
   // Handle manual time editing if paused
-  if (paused) {
-    current_set_time_s = (current_set_time_s + inputDelta_copy * 10) % 1800;
+  if (paused && inputDelta_copy != 0) {
+    int to_add_value = inputDelta_copy * 10000;
+    if (current_set_time_ms < -to_add_value ) {
+      // avoid underflow
+      current_set_time_ms += 1800000;
+    }
+    current_set_time_ms = current_set_time_ms + to_add_value;
+    current_set_time_ms = current_set_time_ms % 1800000;
   }
 
-  if (current_set_time_s < 1500) {
+  if (current_set_time_ms < 1500000) {
     // working
-    setLedValueForTime(current_set_time_s, 255, 0, 0, pulseModifier);
+    setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier);
   } else {
-    int value = current_set_time_s - 300; // 1200-1499
+    int value = current_set_time_ms - 300000;  // 1200000-1499000
     if (useLongFormBreak) {
-      value = (value - 1200) * 5;
+      value = (value - 1200000) * 5;
       setLedValueForTime(value, 0, 200, 70, pulseModifier);
     } else {
       setLedValueForTime(value, 0, 255, 0, pulseModifier);
@@ -166,7 +174,9 @@ void loop() {
 
   // Add time if not paused
   if (!paused) {
-    current_set_time_s = (current_set_time_s + (SPEEDUP_FACTOR * REFRESH_RATE_MS / 1000)) % 1800;
+    uint16_t time_passed_to_add = SPEEDUP_FACTOR * REFRESH_RATE_MS;
+    current_set_time_ms = (current_set_time_ms + time_passed_to_add);
+    current_set_time_ms = current_set_time_ms % 1800000;
   }
   pulse_time_counter_ms = (pulse_time_counter_ms + REFRESH_RATE_MS) % PULSE_PERIOD_MS;
   delay(REFRESH_RATE_MS);
