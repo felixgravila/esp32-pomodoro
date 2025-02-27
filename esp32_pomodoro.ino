@@ -23,7 +23,7 @@ bool paused = true;                  // if time is currently stopped;
 bool sleeping = true;                // low light, inactive
 uint32_t last_event = 0;             // last event, for sleeping
 bool debug_mode = false;             // apply SPEEDUP_FACTOR
-bool useLongFormBreak = false;       // If green should span 360 degrees
+bool useLongFormBreak = true;       // If green should span 360 degrees
 uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
 uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
 
@@ -196,9 +196,9 @@ void loop() {
     int value = current_set_time_ms - 300000;  // 1200000-1499000
     if (useLongFormBreak) {
       value = (value - 1200000) * 5;
-      setLedValueForTime(value, 0, 200, 70, pulseModifier * sleepModifier);
-    } else {
       setLedValueForTime(value, 0, 255, 0, pulseModifier * sleepModifier);
+    } else {
+      setLedValueForTime(value, 0, 240, 20, pulseModifier * sleepModifier);
     }
   }
   abstract_leds();
