@@ -204,9 +204,9 @@ void loop() {
     int value = current_set_time_ms - 300000;  // 1200000-1499000
     if (useLongFormBreak) {
       value = (value - 1200000) * 5;
-      setLedValueForTime(value, 0, 255, 0, pulseModifier * sleepModifier);
+      setLedValueForTime(value, 0, 180, 0, pulseModifier * sleepModifier);
     } else {
-      setLedValueForTime(value, 0, 240, 20, pulseModifier * sleepModifier);
+      setLedValueForTime(value, 0, 180, 20, pulseModifier * sleepModifier);
     }
   }
 
