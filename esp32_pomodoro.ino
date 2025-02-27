@@ -149,7 +149,7 @@ void loop() {
   // Handle manual time editing if paused
   if (paused && inputDelta_copy != 0) {
     int to_add_value = inputDelta_copy * 10000;
-    if (current_set_time_ms < -to_add_value ) {
+    if (current_set_time_ms < -to_add_value) {
       // avoid underflow
       current_set_time_ms += 1800000;
     }
@@ -175,7 +175,17 @@ void loop() {
   // Add time if not paused
   if (!paused) {
     uint16_t time_passed_to_add = SPEEDUP_FACTOR * REFRESH_RATE_MS;
-    current_set_time_ms = (current_set_time_ms + time_passed_to_add);
+    current_set_time_ms = current_set_time_ms + time_passed_to_add;
+    if (current_set_time_ms >= 1800000) {
+      // Done with the break. Reset and pause.
+      current_set_time_ms = 0;
+      paused = true;
+    } else if (current_set_time_ms >= 1500000 && current_set_time_ms < 1500000 + time_passed_to_add) {
+      // Done with work. Set max break and pause.
+      current_set_time_ms = 1500000;
+      paused = true;
+    }
+
     current_set_time_ms = current_set_time_ms % 1800000;
   }
   pulse_time_counter_ms = (pulse_time_counter_ms + REFRESH_RATE_MS) % PULSE_PERIOD_MS;
