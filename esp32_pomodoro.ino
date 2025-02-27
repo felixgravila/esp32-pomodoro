@@ -13,17 +13,18 @@
 
 #define LED_PIN 13
 #define NUM_LEDS 50
-#define BRIGHTNESS 100
 #define LED_TYPE WS2811
 #define COLOR_ORDER GRB
 CRGB abstracted_leds[NUM_LEDS];
 CRGB leds[NUM_LEDS];
 
+int global_brightness = 100;
+
 bool paused = true;                  // if time is currently stopped;
 bool sleeping = true;                // low light, inactive
 uint32_t last_event = 0;             // last event, for sleeping
 bool debug_mode = false;             // apply SPEEDUP_FACTOR
-bool useLongFormBreak = true;       // If green should span 360 degrees
+bool useLongFormBreak = true;        // If green should span 360 degrees
 uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
 uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
 
@@ -115,7 +116,7 @@ void setup() {
   pinMode(SW, INPUT_PULLUP);
 
   FastLED.addLeds<WS2812B, LED_PIN, COLOR_ORDER>(abstracted_leds, NUM_LEDS);
-  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.setBrightness(global_brightness);
   Serial.println("Hello");
 
   attachInterrupt(digitalPinToInterrupt(CLK), encoderISR, CHANGE);
@@ -178,15 +179,22 @@ void loop() {
     sleepModifier = 0.1;
   }
 
-  // Handle manual time editing if paused
-  if (paused && inputDelta_copy != 0) {
-    int to_add_value = inputDelta_copy * 10000;
-    if (current_set_time_ms < -to_add_value) {
-      // avoid underflow
-      current_set_time_ms += 1800000;
+  // Handle rotenc
+  if (inputDelta_copy != 0) {
+    if (paused) {
+      // Moving time
+      int to_add_value = inputDelta_copy * 10000;
+      if (current_set_time_ms < -to_add_value) {
+        // avoid underflow
+        current_set_time_ms += 1800000;
+      }
+      current_set_time_ms = current_set_time_ms + to_add_value;
+      current_set_time_ms = current_set_time_ms % 1800000;
+    } else {
+      // Adjusting brightness
+      global_brightness += inputDelta_copy;
+      global_brightness = constrain(global_brightness, 0, 255);
     }
-    current_set_time_ms = current_set_time_ms + to_add_value;
-    current_set_time_ms = current_set_time_ms % 1800000;
   }
 
   if (current_set_time_ms < 1500000) {
@@ -201,8 +209,6 @@ void loop() {
       setLedValueForTime(value, 0, 240, 20, pulseModifier * sleepModifier);
     }
   }
-  abstract_leds();
-  FastLED.show();
 
   // Add time if not paused
   if (!paused) {
@@ -224,5 +230,9 @@ void loop() {
     current_set_time_ms = current_set_time_ms % 1800000;
   }
   pulse_time_counter_ms = (pulse_time_counter_ms + REFRESH_RATE_MS) % PULSE_PERIOD_MS;
+
+  FastLED.setBrightness(global_brightness);
+  abstract_leds();
+  FastLED.show();
   delay(REFRESH_RATE_MS);
 }
