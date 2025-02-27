@@ -8,7 +8,7 @@
 #define CLK 16
 #define DT 17
 #define SW 15
-#define DEBOUNCE_MS 500
+#define DEBOUNCE_MS 50
 
 #define LED_PIN 13
 #define NUM_LEDS 50
@@ -18,7 +18,7 @@
 CRGB abstracted_leds[NUM_LEDS];
 CRGB leds[NUM_LEDS];
 
-bool paused = false;                 // if time is currently stopped;
+bool paused = true;                  // if time is currently stopped;
 bool useLongFormBreak = false;       // If green should span 360 degrees
 uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
 uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
@@ -61,13 +61,13 @@ void IRAM_ATTR buttonISR() {
   static uint32_t lastInterruptTime = 0;
   uint32_t currentTime = millis();
 
-  if (currentTime - lastInterruptTime > 50) {  // Debounce with 50ms delay
-    if (!digitalRead(SW)) {                    // Button pressed
-      Serial.println("Some kind of click.");
+  if (currentTime - lastInterruptTime > DEBOUNCE_MS) {
+    // hack with !buttonPressed
+    // stupid stuff happening otherwise
+    if (!digitalRead(SW) && !buttonPressed) { // Button pressed
       buttonPressTime = currentTime;
       buttonPressed = true;
     } else {  // Button released
-      Serial.println("Some kind of unclick.");
       uint32_t pressDuration = currentTime - buttonPressTime;
       buttonPressed = false;
       if (pressDuration > 2000) {  // Very long press thershold (2s)
