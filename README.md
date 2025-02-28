@@ -21,11 +21,18 @@ Simple pomodoro clock with light feedback.
 * ESP32 board (I used NodeMCU) - check mounting holes
 * Rotary encoder without breakout
 * WS2812 RGB Led Strip with 144 LEDs/m - 50 LEDs
-
-WS2812 soldered to +5V, GND, and D13
-Button (on encoder) soldered to GND and D15
-Encoder soldered to GND, D16, D17
+* mounting hardware - 12 M3 screws and 8 M3 inserts
 
 ## Printing
 
-Printed in PETG with 30% infill for heft and sturdiness, 3 wall layers. `clock_face_interior` printed with 10% infill and transparent PETG, but white PETG was translucent enough to work. Dial was printed with 100% infill for rotational inertia.
+Printed in PETG with 30% infill for heft and sturdiness, 3 wall layers.
+
+clock_face_interior printed with 10% infill and transparent PETG, but white PETG was translucent enough to work.
+
+The encoder wheel was printed with 100% infill for rotational inertia.
+
+## Building
+
+* WS2812 soldered to +5V, GND, and D13
+* Button (on encoder) soldered to GND and D15
+* Encoder soldered to GND, D16, D17
