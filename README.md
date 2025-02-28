@@ -18,12 +18,15 @@ Simple pomodoro clock with light feedback.
 
 ## Bill of materials
 
-* ESP32 board (I used NodeMCU) - check mounting holes
-* Rotary encoder without breakout
+* ESP32 board (I used NodeMCU)
+* Rotary encoder with switch - without breakout
 * WS2812 RGB Led Strip with 144 LEDs/m - 50 LEDs
+  * mine had waterproofing silicone on it which might be needed to keep the interior diffuser in place
 * mounting hardware - 12 M3 screws and 8 M3 inserts
 
 ## Printing
+
+Check mounting holes for your ESP32! Might not be standard.
 
 Printed in PETG with 30% infill for heft and sturdiness, 3 wall layers.
 
