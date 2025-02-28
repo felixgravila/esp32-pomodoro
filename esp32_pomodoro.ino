@@ -160,7 +160,7 @@ void loop() {
   somethingHappened_copy = somethingHappened;
   somethingHappened = false;
 
-  if ( config_copy != config ) {
+  if (config_copy != config) {
     config_copy = config;
     prefs.begin("pomodoro", false);
     prefs.putInt("config", config_copy);
@@ -233,19 +233,19 @@ void loop() {
   if (current_set_time_ms < 1500000) {
     // working
     setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier * sleepModifier);
-    leds[0].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition); // blink
-    leds[NUM_LEDS-1].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition); // blink
+    leds[0].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);             // blink
+    leds[NUM_LEDS - 1].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);  // blink
   } else {
     int value = current_set_time_ms - 300000;  // 1200000-1499000
     if (useLongFormBreak) {
       value = (value - 1200000) * 5;
       setLedValueForTime(value, 0, 180, 0, pulseModifier * sleepModifier);
-      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
-      leds[NUM_LEDS-1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
+      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
+      leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
     } else {
       setLedValueForTime(value, 0, 180, 20, pulseModifier * sleepModifier);
-      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
-      leds[NUM_LEDS-1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
+      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
+      leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
     }
   }
 
