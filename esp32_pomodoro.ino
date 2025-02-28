@@ -188,8 +188,10 @@ void loop() {
   }
 
   if (veryLongPressFlag_copy) {
-    Serial.println("Very long click!");
-    debug_mode = !debug_mode;
+    Serial.println("Very long click! Resetting and sleeping.");
+    sleeping = true;
+    paused = true;
+    current_set_time_ms = 0;
   }
 
   // Handle pulsing and blinking
