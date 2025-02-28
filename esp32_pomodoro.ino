@@ -24,7 +24,6 @@ bool paused = true;                  // if time is currently stopped;
 bool sleeping = true;                // low light, inactive
 uint32_t last_event = 0;             // last event, for sleeping
 bool debug_mode = false;             // apply SPEEDUP_FACTOR
-bool useLongFormBreak = true;        // If green should span 360 degrees
 uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
 uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
 
@@ -35,12 +34,19 @@ volatile bool veryLongPressFlag = false;  // Very long press detected
 volatile uint32_t buttonPressTime = 0;
 volatile bool buttonPressed = false;
 volatile bool somethingHappened = false;  // Catch all for all ISR
+/*
+config for parameters
+bit 8: blinking top
+bit 7: long form break
+*/
+volatile uint8_t config = 0;
 
 int16_t inputDelta_copy = 0;
 bool clickFlag_copy = false;
 bool longPressFlag_copy = false;
 bool veryLongPressFlag_copy = false;
 bool somethingHappened_copy = false;
+uint8_t config_copy = 0;
 
 void abstract_leds() {
   // Simplify model assuming idx 0 = minute 1 on clock face
@@ -82,7 +88,7 @@ void IRAM_ATTR buttonISR() {
       if (pressDuration > 2000) {  // Very long press thershold (2s)
         veryLongPressFlag = true;
       } else if (pressDuration > 700) {  // Long press threshold (700ms)
-        longPressFlag = true;
+        config = (config + 1) % 4;
       } else {
         clickFlag = true;
       }
@@ -139,7 +145,15 @@ void loop() {
 
   somethingHappened_copy = somethingHappened;
   somethingHappened = false;
+
+  if ( config_copy != config ) {
+    config_copy = config;
+  }
   interrupts();
+
+  // Get config flags from config bits
+  bool blinkWhileRunning = config_copy & 1;
+  bool useLongFormBreak = (config_copy >> 1) & 1;
 
   if (clickFlag_copy) {
     Serial.println("Clicked!");
@@ -156,21 +170,20 @@ void loop() {
     sleeping = true;
   }
 
-  if (longPressFlag_copy) {
-    Serial.println("Long click!");
-    useLongFormBreak = !useLongFormBreak;
-  }
-
   if (veryLongPressFlag_copy) {
     Serial.println("Very long click!");
     debug_mode = !debug_mode;
   }
 
-  // Handle pulsing
+  // Handle pulsing and blinking
+  uint8_t blink_addition = 0;
   float pulseModifier = 1.0;
   if (paused) {
     float pulseModifier0to1 = (1 - cos(pulse_time_counter_ms * PI * 2 / PULSE_PERIOD_MS)) / 2;
     pulseModifier = 0.1 + pulseModifier0to1 * 0.9;
+  } else if (blinkWhileRunning) {
+    float blinkModifier0to1 = (1 - cos((millis() % 1000) * PI * 2 / 1000)) / 2;
+    blink_addition = round(blinkModifier0to1 * 40);
   }
 
   // Handle sleeping
@@ -200,13 +213,19 @@ void loop() {
   if (current_set_time_ms < 1500000) {
     // working
     setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier * sleepModifier);
+    leds[0].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition); // blink
+    leds[NUM_LEDS-1].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition); // blink
   } else {
     int value = current_set_time_ms - 300000;  // 1200000-1499000
     if (useLongFormBreak) {
       value = (value - 1200000) * 5;
       setLedValueForTime(value, 0, 180, 0, pulseModifier * sleepModifier);
+      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
+      leds[NUM_LEDS-1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
     } else {
       setLedValueForTime(value, 0, 180, 20, pulseModifier * sleepModifier);
+      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
+      leds[NUM_LEDS-1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition); // blink
     }
   }
 
