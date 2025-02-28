@@ -129,6 +129,7 @@ void setup() {
     prefs.putInt("brightness", global_brightness);
     prefs.putInt("config", config);
   }
+  prefs.end();
 
   pinMode(CLK, INPUT_PULLUP);
   pinMode(DT, INPUT_PULLUP);
@@ -161,7 +162,9 @@ void loop() {
 
   if ( config_copy != config ) {
     config_copy = config;
+    prefs.begin("pomodoro", false);
     prefs.putInt("config", config_copy);
+    prefs.end();
   }
   interrupts();
 
@@ -221,7 +224,9 @@ void loop() {
       // Adjusting brightness
       global_brightness += inputDelta_copy;
       global_brightness = constrain(global_brightness, 0, 255);
+      prefs.begin("pomodoro", false);
       prefs.putInt("brightness", global_brightness);
+      prefs.end();
     }
   }
 
