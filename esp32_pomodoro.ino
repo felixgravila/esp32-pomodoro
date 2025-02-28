@@ -1,5 +1,8 @@
 #include <Arduino.h>
 #include <FastLED.h>
+#include <Preferences.h>
+
+Preferences prefs;
 
 #define REFRESH_RATE_MS 10
 #define SPEEDUP_FACTOR 100  // For debugging
@@ -117,6 +120,16 @@ void setLedValueForTime(int time_s, uint8_t red, uint8_t green, uint8_t blue, fl
 
 void setup() {
   Serial.begin(115200);
+  prefs.begin("pomodoro", false);  // rw
+  if (prefs.isKey("brightness")) {
+    global_brightness = prefs.getInt("brightness");
+    config = prefs.getInt("config");
+    config_copy = prefs.getInt("config");
+  } else {
+    prefs.putInt("brightness", global_brightness);
+    prefs.putInt("config", config);
+  }
+
   pinMode(CLK, INPUT_PULLUP);
   pinMode(DT, INPUT_PULLUP);
   pinMode(SW, INPUT_PULLUP);
@@ -148,6 +161,7 @@ void loop() {
 
   if ( config_copy != config ) {
     config_copy = config;
+    prefs.putInt("config", config_copy);
   }
   interrupts();
 
@@ -207,6 +221,7 @@ void loop() {
       // Adjusting brightness
       global_brightness += inputDelta_copy;
       global_brightness = constrain(global_brightness, 0, 255);
+      prefs.putInt("brightness", global_brightness);
     }
   }
 
