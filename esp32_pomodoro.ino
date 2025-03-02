@@ -4,7 +4,7 @@
 
 Preferences prefs;
 
-#define REFRESH_RATE_MS 10
+#define REFRESH_RATE_MS 5
 #define SPEEDUP_FACTOR 100  // For debugging
 #define PULSE_PERIOD_MS 5000
 #define TIME_TO_SLEEP_MS 60 * 60 * 1000  // 1h
@@ -220,17 +220,15 @@ void loop() {
   uint8_t blink_addition = 0;
   float pulseModifier = 1.0;
   if (paused) {
-    float pulseModifier0to1 = (1 - cos(pulse_time_counter_ms * PI * 2 / PULSE_PERIOD_MS)) / 2;
+    int pulse_period = PULSE_PERIOD_MS;
+    if (sleeping) {
+      pulse_period *= 2;  // breathe slower if sleeping
+    }
+    float pulseModifier0to1 = (1 - cos(pulse_time_counter_ms * PI * 2 / pulse_period)) / 2;
     pulseModifier = 0.1 + pulseModifier0to1 * 0.9;
   } else if (blinkWhileRunning) {
     float blinkModifier0to1 = (1 - cos((millis() % 1000) * PI * 2 / 1000)) / 2;
     blink_addition = round(blinkModifier0to1 * 40);
-  }
-
-  // Handle sleeping
-  float sleepModifier = 1.0;
-  if (sleeping) {
-    sleepModifier = 0.1;
   }
 
   // Handle rotenc
@@ -270,22 +268,27 @@ void loop() {
     }
   } else {
     show_config = false;
-    if (current_set_time_ms < 1500000) {
+    if (sleeping) {
+      for (int i = 0; i < NUM_LEDS; i++) {
+        uint8_t sleep_white = 4 + pulseModifier * 30;
+        leds[i].setRGB(sleep_white, sleep_white, sleep_white * 0.6);
+      }
+    } else if (current_set_time_ms < 1500000) {
       // working
-      setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier * sleepModifier);
-      leds[0].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);             // blink
-      leds[NUM_LEDS - 1].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);  // blink
+      setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier);
+      leds[0].setRGB(255 * pulseModifier, blink_addition, blink_addition);             // blink
+      leds[NUM_LEDS - 1].setRGB(255 * pulseModifier, blink_addition, blink_addition);  // blink
     } else {
       int value = current_set_time_ms - 300000;  // 1200000-1499000
       if (useLongFormBreak) {
         value = (value - 1200000) * 5;
-        setLedValueForTime(value, 0, 180, 0, pulseModifier * sleepModifier);
-        leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
-        leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
+        setLedValueForTime(value, 0, 180, 0, pulseModifier);
+        leds[0].setRGB(blink_addition, 180 * pulseModifier, blink_addition);             // blink
+        leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier, blink_addition);  // blink
       } else {
-        setLedValueForTime(value, 0, 180, 20, pulseModifier * sleepModifier);
-        leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
-        leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
+        setLedValueForTime(value, 0, 180, 20, pulseModifier);
+        leds[0].setRGB(blink_addition, 180 * pulseModifier, blink_addition);             // blink
+        leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier, blink_addition);  // blink
       }
     }
   }
@@ -309,7 +312,7 @@ void loop() {
 
     current_set_time_ms = current_set_time_ms % 1800000;
   }
-  pulse_time_counter_ms = (pulse_time_counter_ms + REFRESH_RATE_MS) % PULSE_PERIOD_MS;
+  pulse_time_counter_ms = (pulse_time_counter_ms + REFRESH_RATE_MS) % (PULSE_PERIOD_MS * 2); // to account for sleep multiple
 
   FastLED.setBrightness(global_brightness);
   abstract_leds();
