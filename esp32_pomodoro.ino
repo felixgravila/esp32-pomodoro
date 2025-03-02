@@ -37,6 +37,8 @@ volatile bool veryLongPressFlag = false;  // Very long press detected
 volatile uint32_t buttonPressTime = 0;
 volatile bool buttonPressed = false;
 volatile bool somethingHappened = false;  // Catch all for all ISR
+bool sleepOverride = false;               // So somethingHappened doesn't trigger
+
 /*
 config for parameters
 bit 8: blinking top
@@ -77,20 +79,22 @@ void IRAM_ATTR encoderISR() {
 void IRAM_ATTR buttonISR() {
   static uint32_t lastInterruptTime = 0;
   uint32_t currentTime = millis();
-  somethingHappened = true;
 
   if (currentTime - lastInterruptTime > DEBOUNCE_MS) {
+    if (!sleepOverride){
+      // not when releasing after long click
+      somethingHappened = true;
+    }
+    sleepOverride = false;
     // hack with !buttonPressed
     // stupid stuff happening otherwise
     if (!digitalRead(SW) && !buttonPressed) {  // Button pressed
       buttonPressTime = currentTime;
       buttonPressed = true;
-    } else {  // Button released
+    } else if(buttonPressed) {  // Button released
       uint32_t pressDuration = currentTime - buttonPressTime;
       buttonPressed = false;
-      if (pressDuration > 2000) {  // Very long press thershold (2s)
-        veryLongPressFlag = true;
-      } else if (pressDuration > 700) {  // Long press threshold (700ms)
+      if (pressDuration > 700) {  // Long press threshold (700ms)
         config = (config + 1) % 4;
       } else {
         clickFlag = true;
@@ -145,6 +149,14 @@ void setup() {
 }
 
 void loop() {
+  // Set sleep if button pressed after 2s, then reset switch
+  uint32_t pressDuration = millis() - buttonPressTime;
+  if (pressDuration >= 2000 && buttonPressed) {
+    veryLongPressFlag = true;
+    sleepOverride = true;
+    buttonPressed = false;
+  }
+
   // Read volatile flags
   noInterrupts();
   clickFlag_copy = clickFlag;
@@ -165,6 +177,7 @@ void loop() {
     prefs.begin("pomodoro", false);
     prefs.putInt("config", config_copy);
     prefs.end();
+
   }
   interrupts();
 
