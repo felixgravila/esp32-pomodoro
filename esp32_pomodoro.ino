@@ -8,6 +8,7 @@ Preferences prefs;
 #define SPEEDUP_FACTOR 100  // For debugging
 #define PULSE_PERIOD_MS 5000
 #define TIME_TO_SLEEP_MS 60 * 60 * 1000  // 1h
+#define TIME_TO_SHOW_CONFIG_MS 3000
 
 #define CLK 16
 #define DT 17
@@ -23,12 +24,14 @@ CRGB leds[NUM_LEDS];
 
 int global_brightness = 100;
 
-bool paused = true;                  // if time is currently stopped;
-bool sleeping = true;                // low light, inactive
-uint32_t last_event = 0;             // last event, for sleeping
-bool debug_mode = false;             // apply SPEEDUP_FACTOR
-uint32_t current_set_time_ms = 0;    // 0-1499000 work, 1500000-1799000 pause
-uint32_t pulse_time_counter_ms = 0;  // safer than millis() % PULSE_PERIOD_MS
+bool paused = true;                   // if time is currently stopped;
+bool sleeping = true;                 // low light, inactive
+uint32_t last_event = 0;              // last event, for sleeping
+bool debug_mode = false;              // apply SPEEDUP_FACTOR
+uint32_t current_set_time_ms = 0;     // 0-1499000 work, 1500000-1799000 pause
+uint32_t pulse_time_counter_ms = 0;   // safer than millis() % PULSE_PERIOD_MS
+uint32_t started_showing_config = 0;  // to monitor when to show the current config
+bool show_config = false;             // to avoid overflow reshowing config
 
 volatile int16_t inputDelta = 0;          // Amount rotenc got turned
 volatile bool clickFlag = false;          // Single click detected
@@ -52,6 +55,7 @@ bool longPressFlag_copy = false;
 bool veryLongPressFlag_copy = false;
 bool somethingHappened_copy = false;
 uint8_t config_copy = 0;
+bool config_changed = false;
 
 void abstract_leds() {
   // Simplify model assuming idx 0 = minute 1 on clock face
@@ -81,7 +85,7 @@ void IRAM_ATTR buttonISR() {
   uint32_t currentTime = millis();
 
   if (currentTime - lastInterruptTime > DEBOUNCE_MS) {
-    if (!sleepOverride){
+    if (!sleepOverride) {
       // not when releasing after long click
       somethingHappened = true;
     }
@@ -91,7 +95,7 @@ void IRAM_ATTR buttonISR() {
     if (!digitalRead(SW) && !buttonPressed) {  // Button pressed
       buttonPressTime = currentTime;
       buttonPressed = true;
-    } else if(buttonPressed) {  // Button released
+    } else if (buttonPressed) {  // Button released
       uint32_t pressDuration = currentTime - buttonPressTime;
       buttonPressed = false;
       if (pressDuration > 700) {  // Long press threshold (700ms)
@@ -173,13 +177,21 @@ void loop() {
   somethingHappened = false;
 
   if (config_copy != config) {
+    config_changed = true;
     config_copy = config;
+  }
+  interrupts();
+
+  if (config_changed) {
+    // save config
     prefs.begin("pomodoro", false);
     prefs.putInt("config", config_copy);
     prefs.end();
-
+    // setup to show config
+    show_config = true;
+    started_showing_config = millis();
+    config_changed = false;
   }
-  interrupts();
 
   // Get config flags from config bits
   bool blinkWhileRunning = config_copy & 1;
@@ -245,22 +257,40 @@ void loop() {
     }
   }
 
-  if (current_set_time_ms < 1500000) {
-    // working
-    setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier * sleepModifier);
-    leds[0].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);             // blink
-    leds[NUM_LEDS - 1].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);  // blink
-  } else {
-    int value = current_set_time_ms - 300000;  // 1200000-1499000
-    if (useLongFormBreak) {
-      value = (value - 1200000) * 5;
-      setLedValueForTime(value, 0, 180, 0, pulseModifier * sleepModifier);
-      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
-      leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
+  if (show_config && millis() - started_showing_config <= TIME_TO_SHOW_CONFIG_MS) {
+    Serial.println(millis() - started_showing_config);
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i] = CRGB::Black;
+    }
+    if (blinkWhileRunning) {
+      leds[0].setRGB(0, 180, 0);
     } else {
-      setLedValueForTime(value, 0, 180, 20, pulseModifier * sleepModifier);
-      leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
-      leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
+      leds[0].setRGB(255, 0, 0);
+    }
+    if (useLongFormBreak) {
+      leds[5].setRGB(0, 180, 0);
+    } else {
+      leds[5].setRGB(255, 0, 0);
+    }
+  } else {
+    show_config = false;
+    if (current_set_time_ms < 1500000) {
+      // working
+      setLedValueForTime(current_set_time_ms, 255, 0, 0, pulseModifier * sleepModifier);
+      leds[0].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);             // blink
+      leds[NUM_LEDS - 1].setRGB(255 * pulseModifier * sleepModifier, blink_addition, blink_addition);  // blink
+    } else {
+      int value = current_set_time_ms - 300000;  // 1200000-1499000
+      if (useLongFormBreak) {
+        value = (value - 1200000) * 5;
+        setLedValueForTime(value, 0, 180, 0, pulseModifier * sleepModifier);
+        leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
+        leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
+      } else {
+        setLedValueForTime(value, 0, 180, 20, pulseModifier * sleepModifier);
+        leds[0].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);             // blink
+        leds[NUM_LEDS - 1].setRGB(blink_addition, 180 * pulseModifier * sleepModifier, blink_addition);  // blink
+      }
     }
   }
 
