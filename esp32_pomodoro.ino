@@ -145,7 +145,6 @@ void setup() {
 
   FastLED.addLeds<WS2812B, LED_PIN, COLOR_ORDER>(abstracted_leds, NUM_LEDS);
   FastLED.setBrightness(global_brightness);
-  Serial.println("Hello");
 
   attachInterrupt(digitalPinToInterrupt(CLK), encoderISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(DT), encoderISR, CHANGE);
@@ -198,7 +197,6 @@ void loop() {
   bool useLongFormBreak = (config_copy >> 1) & 1;
 
   if (clickFlag_copy) {
-    Serial.println("Clicked!");
     paused = !paused;
   }
 
@@ -213,7 +211,6 @@ void loop() {
   }
 
   if (veryLongPressFlag_copy) {
-    Serial.println("Very long click! Resetting and sleeping.");
     sleeping = true;
     paused = true;
     current_set_time_ms = 0;
@@ -258,7 +255,6 @@ void loop() {
   }
 
   if (show_config && millis() - started_showing_config <= TIME_TO_SHOW_CONFIG_MS) {
-    Serial.println(millis() - started_showing_config);
     for (int i = 0; i < NUM_LEDS; i++) {
       leds[i] = CRGB::Black;
     }
