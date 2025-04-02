@@ -9,6 +9,7 @@ Preferences prefs;
 #define PULSE_PERIOD_MS 5000
 #define TIME_TO_SLEEP_MS 60 * 60 * 1000  // 1h
 #define TIME_TO_SHOW_CONFIG_MS 3000
+#define SCROLL_WHEEL_TIME_FACTOR 10000
 
 #define CLK 16
 #define DT 17
@@ -28,7 +29,7 @@ bool paused = true;                   // if time is currently stopped;
 bool sleeping = true;                 // low light, inactive
 uint32_t last_event = 0;              // last event, for sleeping
 bool debug_mode = false;              // apply SPEEDUP_FACTOR
-uint32_t current_set_time_ms = 0;     // 0-1499000 work, 1500000-1799000 pause
+uint32_t current_set_time_ms = 0;     // 0-1499000 work, 1500000-1799999 pause
 uint32_t pulse_time_counter_ms = 0;   // safer than millis() % PULSE_PERIOD_MS
 uint32_t started_showing_config = 0;  // to monitor when to show the current config
 bool show_config = false;             // to avoid overflow reshowing config
@@ -36,7 +37,7 @@ bool show_config = false;             // to avoid overflow reshowing config
 volatile int16_t inputDelta = 0;          // Amount rotenc got turned
 volatile bool clickFlag = false;          // Single click detected
 volatile bool longPressFlag = false;      // Long press detected
-volatile bool veryLongPressFlag = false;  // Very long press detected
+bool veryLongPressFlag = false;  // Very long press detected
 volatile uint32_t buttonPressTime = 0;
 volatile bool buttonPressed = false;
 volatile bool somethingHappened = false;  // Catch all for all ISR
@@ -52,7 +53,6 @@ volatile uint8_t config = 0;
 int16_t inputDelta_copy = 0;
 bool clickFlag_copy = false;
 bool longPressFlag_copy = false;
-bool veryLongPressFlag_copy = false;
 bool somethingHappened_copy = false;
 uint8_t config_copy = 0;
 bool config_changed = false;
@@ -68,7 +68,7 @@ void abstract_leds() {
 void IRAM_ATTR encoderISR() {
   static uint8_t lastState = 0;
   uint8_t state = (digitalRead(CLK) << 1) | digitalRead(DT);
-  somethingHappened = true;
+  // somethingHappened = true;
 
   // Detect direction
   if ((lastState == 0b10 && state == 0b00) || (lastState == 0b00 && state == 0b01) || (lastState == 0b01 && state == 0b11) || (lastState == 0b11 && state == 0b10)) {
@@ -86,7 +86,8 @@ void IRAM_ATTR buttonISR() {
 
   if (currentTime - lastInterruptTime > DEBOUNCE_MS) {
     if (!sleepOverride) {
-      // not when releasing after long click
+      // sleepOverride happens if long click
+      // is used so releasing the button doesn't cancel sleep
       somethingHappened = true;
     }
     sleepOverride = false;
@@ -164,10 +165,8 @@ void loop() {
   noInterrupts();
   clickFlag_copy = clickFlag;
   longPressFlag_copy = longPressFlag;
-  veryLongPressFlag_copy = veryLongPressFlag;
   clickFlag = false;
   longPressFlag = false;
-  veryLongPressFlag = false;
 
   inputDelta_copy = inputDelta;
   inputDelta = 0;
@@ -200,17 +199,25 @@ void loop() {
     paused = !paused;
   }
 
-  // Handle wake up from sleep
+  // Compute if dial moved enough to exit sleep
+  if (sleeping) {
+    if (current_set_time_ms > (3 * SCROLL_WHEEL_TIME_FACTOR) && current_set_time_ms < (1800000 - (3 * SCROLL_WHEEL_TIME_FACTOR))) {
+      // Ensuring at least a click to avoid random bounce problems
+      sleeping = false;
+      current_set_time_ms = 0;
+    }
+  }
+
+  // Check and exit sleep if button clicked
+  // or if dial moved more thna
   // and remember last event, also for sleep
   if (somethingHappened_copy) {
     last_event = millis();
     sleeping = false;
   }
-  if (millis() - last_event >= TIME_TO_SLEEP_MS) {
-    sleeping = true;
-  }
-
-  if (veryLongPressFlag_copy) {
+  if ((millis() - last_event >= TIME_TO_SLEEP_MS) || veryLongPressFlag) {
+    // Sleep if inactive in a long time
+    // or if pressed long
     sleeping = true;
     paused = true;
     current_set_time_ms = 0;
@@ -235,7 +242,7 @@ void loop() {
   if (inputDelta_copy != 0) {
     if (paused) {
       // Moving time
-      int to_add_value = inputDelta_copy * 10000;
+      int to_add_value = inputDelta_copy * SCROLL_WHEEL_TIME_FACTOR;
       if (current_set_time_ms < -to_add_value) {
         // avoid underflow
         current_set_time_ms += 1800000;
@@ -314,6 +321,7 @@ void loop() {
   }
   pulse_time_counter_ms = (pulse_time_counter_ms + REFRESH_RATE_MS) % (PULSE_PERIOD_MS * 2); // to account for sleep multiple
 
+  veryLongPressFlag = false;
   FastLED.setBrightness(global_brightness);
   abstract_leds();
   FastLED.show();
