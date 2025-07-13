@@ -8,6 +8,7 @@ Preferences prefs;
 #define SPEEDUP_FACTOR 100  // For debugging
 #define PULSE_PERIOD_MS 5000
 #define TIME_TO_SLEEP_MS 60 * 60 * 1000  // 1h
+#define TIME_TO_DEEPSLEEP_MS 3 * 60 * 60 * 1000  // 3h
 #define TIME_TO_SHOW_CONFIG_MS 3000
 #define SCROLL_WHEEL_TIME_FACTOR 10000
 
@@ -27,6 +28,7 @@ int global_brightness = 100;
 
 bool paused = true;                   // if time is currently stopped;
 bool sleeping = true;                 // low light, inactive
+bool deepsleeping = true;                 // low light, inactive
 uint32_t last_event = 0;              // last event, for sleeping
 bool debug_mode = false;              // apply SPEEDUP_FACTOR
 uint32_t current_set_time_ms = 0;     // 0-1499000 work, 1500000-1799999 pause
@@ -204,6 +206,7 @@ void loop() {
     if (current_set_time_ms > (3 * SCROLL_WHEEL_TIME_FACTOR) && current_set_time_ms < (1800000 - (3 * SCROLL_WHEEL_TIME_FACTOR))) {
       // Ensuring at least a click to avoid random bounce problems
       sleeping = false;
+      deepsleeping = false;
       current_set_time_ms = 0;
     }
   }
@@ -214,6 +217,7 @@ void loop() {
   if (somethingHappened_copy) {
     last_event = millis();
     sleeping = false;
+    deepsleeping = false;
   }
   if ((millis() - last_event >= TIME_TO_SLEEP_MS) || veryLongPressFlag) {
     // Sleep if inactive in a long time
@@ -222,6 +226,11 @@ void loop() {
     paused = true;
     current_set_time_ms = 0;
   }
+  if ((millis() - last_event >= TIME_TO_DEEPSLEEP_MS)) {
+    // Deep Sleep to save energy
+    deepsleeping = true;
+  }
+
 
   // Handle pulsing and blinking
   uint8_t blink_addition = 0;
@@ -276,7 +285,13 @@ void loop() {
   } else {
     show_config = false;
     if (sleeping) {
-      for (int i = 0; i < NUM_LEDS; i++) {
+      int start_led = 0;
+      int end_led = NUM_LEDS;
+      if (deepsleeping) {
+        start_led = 0;
+        end_led = 1;
+      }
+      for (int i = start_led; i < end_led; i++) {
         uint8_t sleep_white = 4 + pulseModifier * 30;
         leds[i].setRGB(sleep_white, sleep_white, sleep_white * 0.6);
       }
